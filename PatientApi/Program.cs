@@ -1,56 +1,31 @@
-using Microsoft.OpenApi;
+using System;
+using System.Linq;
 using Microsoft.EntityFrameworkCore;
-using PatientApi.Models;
 
-var builder = WebApplication.CreateBuilder(args);
+using var db = new BloggingContext();
 
-builder.Services.AddDbContext<PatientDb>(options => options.UseInMemoryDatabase("items"));
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
-{
-    c.SwaggerDoc("v1", new OpenApiInfo
-    {
-        Title = "PatientApi",
-        Description = "Patient API Learning Project",
-        Version = "v1"
-    });
-});
+// Note: This sample requires the database to be created before running.
+Console.WriteLine($"Database path: {db.DbPath}.");
 
-var app = builder.Build();
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Patient API V1");
-    });
-}
+// Create
+Console.WriteLine("Inserting a new blog");
+db.Add(new Blog { Url = "http://blogs.msdn.com/adonet" });
+await db.SaveChangesAsync();
 
-app.MapGet("/", () => "Hello World!");
-app.MapGet("/patients", async (PatientDb db) =>
-{
-    // 1. Fetch from DB into memory first
-    var patients = await db.Patients.ToListAsync();
+// Read
+Console.WriteLine("Querying for a blog");
+var blog = await db.Blogs
+    .OrderBy(b => b.BlogId)
+    .FirstAsync();
 
-    // 2. Map them in-memory and return
-    return patients.Select(patient => patient.ToDto());
-});
-app.MapPost("/patient", async (PatientDb db, Patient patient) =>
-{
-    await db.Patients.AddAsync(patient);
-    await db.SaveChangesAsync();
-    return Results.Created($"/patient/{patient.Id}", patient);
-});
-app.MapDelete("/patient/{id}", async (PatientDb db, int id) =>
-{
-    var patient = await db.Patients.FindAsync(id);
-    if (patient is null)
-    {
-        return Results.NotFound();
-    }
-    db.Patients.Remove(patient);
-    await db.SaveChangesAsync();
-    return Results.Ok();
-});
+// Update
+Console.WriteLine("Updating the blog and adding a post");
+blog.Url = "https://devblogs.microsoft.com/dotnet";
+blog.Posts.Add(
+    new Post { Title = "Hello World", Content = "I wrote an app using EF Core!" });
+await db.SaveChangesAsync();
 
-app.Run();
+// Delete
+Console.WriteLine("Delete the blog");
+db.Remove(blog);
+await db.SaveChangesAsync();
